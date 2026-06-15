@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>JobLens — AI LinkedIn Job Search</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --lj-navy:#0A0F2E;--lj-navy-mid:#101535;--lj-card:#151A3A;--lj-card2:#1C2347;
+  --lj-border:#252D56;--lj-cyan:#00D4FF;--lj-cyan-dim:rgba(0,212,255,.12);
+  --lj-green:#00E5B0;--lj-amber:#FFB547;--lj-red:#FF5A6E;
+  --lj-text:#E8EDF8;--lj-muted:#6B7AA0;--lj-label:#8B9CC8;
+  --lj-linkedin:#0A66C2;
+  --font-d:'Plus Jakarta Sans',system-ui,sans-serif;
+  --font-m:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--font-d);background:var(--lj-navy);color:var(--lj-text);min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+/* ── Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--lj-navy-mid);}
+::-webkit-scrollbar-thumb{background:var(--lj-border);border-radius:3px;}
+
+/* ── Navbar */
+.navbar{background:rgba(10,15,46,.97);border-bottom:1px solid var(--lj-border);backdrop-filter:blur(14px);padding:12px 0;position:sticky;top:0;z-index:1000;}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--lj-text);font-size:1.1rem;font-weight:500;}
+.brand strong{font-weight:800;color:var(--lj-cyan);}
+.brand-logo{width:32px;height:32px;border-radius:8px;background:var(--lj-linkedin);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.95rem;}
+.nav-lnk{color:var(--lj-muted);font-weight:600;font-size:.85rem;text-decoration:none;padding:6px 12px;border-radius:8px;cursor:pointer;transition:.15s;position:relative;}
+.nav-lnk:hover,.nav-lnk.active{color:var(--lj-cyan);}
+.nav-badge{position:absolute;top:0;right:0;transform:translate(40%,-40%);background:var(--lj-cyan);color:var(--lj-navy);font-size:.58rem;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+.api-wrap{display:flex;align-items:center;gap:6px;background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:10px;padding:6px 10px;transition:.15s;}
+.api-wrap.ok{border-color:rgba(0,229,176,.4);}
+.api-wrap i{color:var(--lj-muted);font-size:.85rem;}
+.api-inp{background:none;border:none;outline:none;color:var(--lj-text);font-size:.75rem;width:190px;font-family:var(--font-m);}
+.api-inp::placeholder{color:var(--lj-muted);font-family:var(--font-d);}
+.key-ok{color:var(--lj-green);font-size:.75rem;font-weight:700;}
+
+/* ── Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulseC{0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.5)}50%{box-shadow:0 0 0 8px rgba(0,212,255,0)}}
+@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
+.fade-up{animation:fadeUp .3s ease both;}
+
+/* ── Pages */
+.page{display:none;}.page.active{display:block;}
+
+/* ════ SEARCH PAGE ════════════════════════════════════════════════ */
+.hero{position:relative;padding:80px 0 50px;overflow:hidden;text-align:center;}
+.hero-bg{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(0,212,255,.15) 0%,transparent 70%),
+             radial-gradient(ellipse 40% 40% at 80% 100%,rgba(0,229,176,.07) 0%,transparent 60%);}
+.hero-content{position:relative;}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.75rem;font-weight:600;color:var(--lj-cyan);letter-spacing:.1em;text-transform:uppercase;margin-bottom:18px;}
+.eyebrow-dot{width:7px;height:7px;border-radius:50%;background:var(--lj-cyan);animation:pulseC 2s infinite;}
+.hero-title{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:800;letter-spacing:-.04em;line-height:1.1;margin-bottom:18px;}
+.grad-text{background:linear-gradient(90deg,var(--lj-cyan),var(--lj-green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-sub{font-size:1rem;color:var(--lj-muted);line-height:1.65;max-width:560px;margin:0 auto;}
+
+.search-card{background:var(--lj-card);border:1px solid var(--lj-border);border-radius:20px;padding:28px 30px;box-shadow:0 16px 64px rgba(0,0,0,.5);margin-top:-10px;}
+
+/* Tab bar */
+.tab-bar{display:flex;gap:4px;border-bottom:1px solid var(--lj-border);margin-bottom:22px;}
+.tb{display:flex;align-items:center;gap:7px;padding:10px 18px;font-size:.85rem;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--lj-muted);cursor:pointer;transition:.15s;position:relative;}
+.tb.active{color:var(--lj-cyan);border-color:var(--lj-cyan);}
+.tb:hover:not(.active){color:var(--lj-text);}
+.tb-badge{position:absolute;top:4px;right:4px;background:var(--lj-green);color:var(--lj-navy);font-size:.58rem;font-weight:800;width:13px;height:13px;border-radius:7px;display:flex;align-items:center;justify-content:center;}
+
+/* Inputs */
+.inp-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:640px){.inp-row{grid-template-columns:1fr;}}
+.inp-wrap{position:relative;}
+.inp-ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--lj-muted);font-size:.9rem;pointer-events:none;}
+.s-inp{background:var(--lj-card2)!important;border:1px solid var(--lj-border)!important;color:var(--lj-text)!important;border-radius:10px;padding:10px 12px 10px 36px!important;font-size:.9rem;height:48px;width:100%;outline:none;transition:.15s;font-family:var(--font-d);}
+.s-inp:focus{border-color:var(--lj-cyan)!important;box-shadow:0 0 0 3px rgba(0,212,255,.15)!important;}
+.s-inp::placeholder{color:var(--lj-muted);}
+
+/* Suggestions */
+.sugs{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:12px;}
+.sug-l{font-size:.72rem;color:var(--lj-muted);font-weight:600;}
+.sug{background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:20px;padding:3px 11px;font-size:.72rem;font-weight:500;color:var(--lj-label);cursor:pointer;transition:.15s;}
+.sug:hover{border-color:var(--lj-cyan);color:var(--lj-cyan);}
+
+/* Drop zone */
+.drop-z{border:2px dashed var(--lj-border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:.2s;}
+.drop-z:hover,.drop-z.dov{border-color:var(--lj-cyan);background:var(--lj-cyan-dim);}
+.drop-ic{font-size:2.6rem;color:var(--lj-muted);margin-bottom:10px;}
+.drop-t{font-size:.98rem;font-weight:600;margin-bottom:4px;}
+.drop-t span{color:var(--lj-cyan);text-decoration:underline;}
+.drop-h{font-size:.76rem;color:var(--lj-muted);margin:0;}
+
+/* Parsing spinner */
+.parse-st{text-align:center;padding:36px 20px;}
+.p-ring-wrap{position:relative;width:64px;height:64px;margin:0 auto 18px;}
+.p-ring{position:absolute;inset:0;border-radius:50%;border:3px solid var(--lj-border);border-top-color:var(--lj-cyan);animation:spin 1s linear infinite;}
+.p-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:var(--lj-cyan);}
+.p-title{font-weight:700;font-size:.95rem;margin-bottom:4px;}
+.p-sub{font-size:.78rem;color:var(--lj-muted);}
+
+/* Profile card */
+.prof-card{background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:14px;padding:18px;}
+.prof-hdr{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.prof-av{width:44px;height:44px;border-radius:12px;flex-shrink:0;background:linear-gradient(135deg,var(--lj-cyan),var(--lj-green));display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:var(--lj-navy);}
+.prof-inf h5{font-size:.92rem;font-weight:700;margin-bottom:2px;}
+.prof-inf p{font-size:.78rem;color:var(--lj-muted);margin:0;}
+.prof-inf{flex:1;}
+.clr-btn{background:none;border:1px solid var(--lj-border);color:var(--lj-muted);border-radius:8px;padding:3px 8px;cursor:pointer;font-size:.82rem;}
+.clr-btn:hover{border-color:var(--lj-red);color:var(--lj-red);}
+.prof-sum{font-size:.8rem;color:var(--lj-label);margin-bottom:12px;line-height:1.6;}
+.prof-stats{display:flex;gap:20px;margin-bottom:12px;}
+.pst{display:flex;flex-direction:column;align-items:center;}
+.psv{font-size:1.15rem;font-weight:800;color:var(--lj-cyan);}
+.psl{font-size:.64rem;color:var(--lj-muted);text-transform:uppercase;letter-spacing:.05em;}
+.sk-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.sk-chip{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.2);color:var(--lj-cyan);font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:20px;}
+.sk-chip.more{color:var(--lj-muted);background:var(--lj-card);border-color:var(--lj-border);}
+
+/* Filters */
+.flt-row{display:flex;align-items:center;gap:8px;margin-top:18px;}
+.flt-btn{display:flex;align-items:center;gap:6px;background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:10px;padding:8px 14px;font-size:.8rem;font-weight:600;color:var(--lj-label);cursor:pointer;transition:.15s;}
+.flt-btn:hover{border-color:var(--lj-cyan);color:var(--lj-cyan);}
+.flt-panel{margin-top:14px;padding:16px;background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:12px;}
+.flt-label{font-size:.72rem;color:var(--lj-muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;display:block;}
+.f-sel{background:var(--lj-card)!important;border:1px solid var(--lj-border)!important;color:var(--lj-text)!important;border-radius:8px;padding:8px 10px;width:100%;font-family:var(--font-d);font-size:.82rem;outline:none;}
+.f-sel:focus{border-color:var(--lj-cyan)!important;}
+
+/* Alert */
+.alert-c{display:flex;align-items:flex-start;gap:8px;background:rgba(255,90,110,.1);border:1px solid rgba(255,90,110,.25);border-radius:10px;padding:11px 14px;font-size:.83rem;color:var(--lj-red);margin-top:14px;}
+
+/* Search footer */
+.s-footer{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:22px;}
+.no-key-h{font-size:.76rem;color:var(--lj-muted);display:flex;align-items:center;gap:5px;}
+.no-key-h i{color:var(--lj-amber);}
+.s-btn{width:100%;max-width:340px;height:52px;border-radius:14px;font-size:1rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--lj-cyan);border:none;color:var(--lj-navy);cursor:pointer;transition:.15s;}
+.s-btn:hover:not(:disabled){transform:translateY(-2px);}
+.s-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* Stats strip */
+.stats-strip{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:36px;padding:18px 28px;background:var(--lj-card);border:1px solid var(--lj-border);border-radius:14px;}
+.ss-item{display:flex;flex-direction:column;align-items:center;padding:8px 28px;}
+.ss-num{font-size:.95rem;font-weight:800;color:var(--lj-cyan);}
+.ss-desc{font-size:.68rem;color:var(--lj-muted);margin-top:2px;}
+.ss-sep{width:1px;height:36px;background:var(--lj-border);}
+
+/* ════ RESULTS PAGE ══════════════════════════════════════════════ */
+.results-layout{display:grid;grid-template-columns:370px 1fr;height:calc(100vh - 62px);overflow:hidden;}
+@media(max-width:860px){.results-layout{grid-template-columns:1fr;height:auto;overflow:visible;}}
+
+/* Left panel */
+.list-panel{border-right:1px solid var(--lj-border);display:flex;flex-direction:column;overflow:hidden;background:var(--lj-navy-mid);}
+.list-hdr{padding:14px;border-bottom:1px solid var(--lj-border);flex-shrink:0;}
+.lh-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.jcount{font-weight:700;font-size:.85rem;}
+.saved-tog{display:flex;align-items:center;gap:5px;font-size:.75rem;font-weight:600;color:var(--lj-muted);cursor:pointer;padding:3px 9px;border-radius:8px;border:1px solid var(--lj-border);transition:.15s;}
+.saved-tog.active{color:var(--lj-amber);border-color:rgba(255,181,71,.4);}
+.saved-num{background:var(--lj-amber);color:var(--lj-navy);font-size:.58rem;font-weight:800;padding:0 3px;border-radius:8px;min-width:15px;text-align:center;}
+.list-srch{display:flex;align-items:center;gap:7px;background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:10px;padding:7px 11px;margin-bottom:9px;}
+.list-srch i{color:var(--lj-muted);font-size:.82rem;}
+.ls-inp{flex:1;background:none;border:none;outline:none;color:var(--lj-text);font-size:.8rem;font-family:var(--font-d);}
+.ls-inp::placeholder{color:var(--lj-muted);}
+.f-pills{display:flex;gap:5px;flex-wrap:wrap;}
+.f-pill{padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:600;border:1px solid var(--lj-border);background:none;color:var(--lj-muted);cursor:pointer;transition:.15s;}
+.f-pill.active{background:var(--lj-cyan-dim);border-color:var(--lj-cyan);color:var(--lj-cyan);}
+.f-pill:hover:not(.active){border-color:var(--lj-label);color:var(--lj-label);}
+
+.job-list{overflow-y:auto;flex:1;padding:8px;}
+.no-match{text-align:center;padding:36px 20px;color:var(--lj-muted);font-size:.83rem;}
+
+/* Job card */
+.jc{background:var(--lj-card);border:1px solid var(--lj-border);border-radius:12px;padding:13px;margin-bottom:7px;cursor:pointer;transition:.15s;}
+.jc:hover{border-color:rgba(0,212,255,.3);}
+.jc.sel{border-color:var(--lj-cyan);background:var(--lj-card2);box-shadow:inset 3px 0 0 var(--lj-cyan);}
+.jc-tr{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:2px;}
+.jc-ttl{font-size:.87rem;font-weight:700;margin:0;line-height:1.3;flex:1;}
+.sv-btn{background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--lj-muted);font-size:.9rem;}
+.sv-btn.saved,.sv-btn:hover{color:var(--lj-amber);}
+.jc-co{font-size:.75rem;font-weight:600;color:var(--lj-label);margin-bottom:2px;}
+.jc-loc{font-size:.7rem;color:var(--lj-muted);margin:0;}
+.jc-mid{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin:7px 0;}
+.jc-bot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px;}
+.jc-sal{font-size:.65rem;color:var(--lj-green);font-family:var(--font-m);}
+.jc-post{font-size:.65rem;color:var(--lj-muted);margin:0;}
+
+/* Badges */
+.b-remote{background:rgba(0,229,176,.12);color:var(--lj-green);font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:10px;}
+.b-hybrid{background:rgba(0,212,255,.12);color:var(--lj-cyan);font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:10px;}
+.b-onsite{background:rgba(107,122,160,.12);color:var(--lj-muted);font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:10px;}
+.b-et{background:rgba(139,156,200,.1);color:var(--lj-label);font-size:.63rem;font-weight:600;padding:2px 7px;border-radius:10px;}
+.b-sn{background:rgba(255,181,71,.1);color:var(--lj-amber);font-size:.63rem;font-weight:600;padding:2px 7px;border-radius:10px;}
+.b-ea{background:rgba(10,102,194,.12);color:var(--lj-linkedin);font-size:.63rem;font-weight:700;padding:2px 7px;border-radius:10px;}
+
+/* Match bar */
+.mb-wrap{display:flex;align-items:center;gap:6px;flex:1;}
+.mb{flex:1;height:4px;background:var(--lj-border);border-radius:2px;overflow:hidden;}
+.mb-fill{height:100%;border-radius:2px;transition:width .6s ease;}
+.mh .mb-fill{background:var(--lj-green);}
+.mm .mb-fill{background:var(--lj-cyan);}
+.ml .mb-fill{background:var(--lj-amber);}
+.m-lbl{font-size:.65rem;font-weight:700;white-space:nowrap;font-family:var(--font-m);}
+.mh.m-lbl{color:var(--lj-green);}.mm.m-lbl{color:var(--lj-cyan);}.ml.m-lbl{color:var(--lj-amber);}
+
+/* Right / detail panel */
+.detail-panel{overflow-y:auto;display:flex;flex-direction:column;background:var(--lj-navy);}
+.empty-dp{display:flex;align-items:center;justify-content:center;flex:1;color:var(--lj-muted);text-align:center;}
+.empty-dp-ic{font-size:2.4rem;margin-bottom:10px;}
+
+/* Detail header */
+.dh{padding:22px 26px 0;background:var(--lj-card);border-bottom:1px solid var(--lj-border);}
+.dh-top{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;}
+.co-logo{width:50px;height:50px;border-radius:12px;background:linear-gradient(135deg,var(--lj-card2),var(--lj-border));border:1px solid var(--lj-border);display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;color:var(--lj-cyan);flex-shrink:0;}
+.dh-inf{flex:1;}
+.dh-ttl{font-size:1.2rem;font-weight:800;margin-bottom:4px;line-height:1.2;}
+.dh-co{font-size:.85rem;color:var(--lj-label);font-weight:600;margin-bottom:5px;}
+.dh-co span{font-weight:400;color:var(--lj-muted);font-size:.78rem;}
+.dh-meta{display:flex;flex-wrap:wrap;gap:10px;}
+.dh-meta span{font-size:.72rem;color:var(--lj-muted);}
+.m-ring{width:62px;height:62px;border-radius:50%;border:3px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:.95rem;font-weight:800;flex-shrink:0;line-height:1;}
+.m-ring span{font-size:.52rem;text-transform:uppercase;letter-spacing:.05em;}
+.m-ring.mh{border-color:var(--lj-green);color:var(--lj-green);}
+.m-ring.mm{border-color:var(--lj-cyan);color:var(--lj-cyan);}
+.m-ring.ml{border-color:var(--lj-amber);color:var(--lj-amber);}
+
+.dh-bgs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:13px;}
+.b-sal{background:rgba(0,229,176,.1);color:var(--lj-green);font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:10px;font-family:var(--font-m);}
+
+.dh-acts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.btn-li{background:var(--lj-linkedin);border:none;color:#fff;font-weight:700;border-radius:10px;padding:10px 18px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:6px;text-decoration:none;}
+.btn-li:hover{background:#0858a8;color:#fff;}
+.btn-ol{background:transparent;border:1px solid var(--lj-cyan);color:var(--lj-cyan);border-radius:10px;padding:8px 14px;cursor:pointer;font-size:.78rem;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:5px;}
+.btn-ol:hover{background:var(--lj-cyan);color:var(--lj-navy);}
+.btn-sv{background:var(--lj-card2);border:1px solid var(--lj-border);color:var(--lj-muted);border-radius:10px;padding:8px 14px;cursor:pointer;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:5px;}
+.btn-sv:hover,.btn-sv.saved{color:var(--lj-amber);border-color:rgba(255,181,71,.4);}
+
+.sm-row{display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding-bottom:14px;}
+.sm-lbl{font-size:.68rem;color:var(--lj-muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+.sm-c{font-size:.67rem;font-weight:600;padding:2px 8px;border-radius:20px;}
+.sm-c.mat{background:rgba(0,229,176,.12);color:var(--lj-green);border:1px solid rgba(0,229,176,.25);}
+.sm-c.unm{background:rgba(107,122,160,.1);color:var(--lj-muted);border:1px solid var(--lj-border);}
+
+/* Detail tabs */
+.dtabs{display:flex;border-bottom:1px solid var(--lj-border);padding:0 26px;background:var(--lj-card);}
+.dtab{display:flex;align-items:center;gap:5px;padding:11px 16px;font-size:.8rem;font-weight:600;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--lj-muted);cursor:pointer;transition:.15s;}
+.dtab.active{color:var(--lj-cyan);border-color:var(--lj-cyan);}
+.dtab:hover:not(.active){color:var(--lj-text);}
+
+/* Detail body */
+.dbody{padding:22px 26px;flex:1;}
+.eyebrow-s{font-size:.68rem;font-weight:700;color:var(--lj-cyan);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:5px;}
+
+.match-r{background:var(--lj-card2);border:1px solid rgba(0,212,255,.2);border-left:3px solid var(--lj-cyan);border-radius:10px;padding:13px 16px;margin-bottom:22px;}
+.match-r ul{margin:0;padding-left:16px;}
+.match-r li{font-size:.83rem;color:var(--lj-label);line-height:1.7;}
+
+.jd-txt p{font-size:.86rem;color:var(--lj-label);line-height:1.75;margin-bottom:13px;}
+.jd-txt p:last-child{margin-bottom:0;}
+
+.ben-grid{display:flex;flex-wrap:wrap;gap:7px;}
+.ben-c{display:flex;align-items:center;gap:5px;background:rgba(0,229,176,.08);border:1px solid rgba(0,229,176,.2);color:var(--lj-green);font-size:.75rem;font-weight:500;padding:4px 11px;border-radius:20px;}
+
+.co-section{text-align:center;padding:16px 0;}
+.co-logo-lg{width:68px;height:68px;border-radius:14px;margin:0 auto 14px;background:linear-gradient(135deg,var(--lj-card2),var(--lj-border));border:1px solid var(--lj-border);display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:800;color:var(--lj-cyan);}
+.co-section h3{font-weight:800;margin-bottom:10px;}
+.co-meta{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+.co-meta span{font-size:.8rem;color:var(--lj-muted);}
+.co-about{font-size:.86rem;color:var(--lj-label);line-height:1.7;max-width:480px;margin:0 auto;}
+
+.sim-loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:36px 0;color:var(--lj-muted);font-size:.83rem;}
+.sim-loading .sr{width:34px;height:34px;border-radius:50%;border:3px solid var(--lj-border);border-top-color:var(--lj-cyan);animation:spin 1s linear infinite;}
+.sim-empty{text-align:center;padding:28px 0;color:var(--lj-muted);font-size:.83rem;}
+.sim-grid{display:flex;flex-direction:column;gap:9px;}
+.sim-c{display:flex;gap:11px;align-items:flex-start;background:var(--lj-card2);border:1px solid var(--lj-border);border-radius:12px;padding:13px;cursor:pointer;transition:.15s;}
+.sim-c:hover{border-color:var(--lj-cyan);}
+.sim-logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--lj-card),var(--lj-border));border:1px solid var(--lj-border);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--lj-cyan);font-size:.9rem;flex-shrink:0;}
+.sim-inf h6{font-size:.83rem;font-weight:700;margin-bottom:2px;}
+.sim-inf p{font-size:.72rem;color:var(--lj-muted);margin-bottom:5px;}
+.sim-meta{display:flex;align-items:center;gap:7px;}
+
+/* Skeleton */
+.sk{background:linear-gradient(90deg,var(--lj-card) 25%,var(--lj-card2) 50%,var(--lj-card) 75%);background-size:600px 100%;animation:shimmer 1.4s infinite;border-radius:6px;}
+.sk-card{background:var(--lj-card);border:1px solid var(--lj-border);border-radius:12px;padding:13px;margin-bottom:7px;}
+
+/* Empty results */
+.empty-res{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;text-align:center;}
+.empty-res .ei{font-size:2.8rem;color:var(--lj-muted);}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="container-xl d-flex align-items-center justify-content-between">
+    <a class="brand" onclick="showPage('search')">
+      <div class="brand-logo"><i class="bi bi-linkedin"></i></div>
+      <span>Job<strong>Lens</strong></span>
+    </a>
+    <div class="d-flex align-items-center gap-3">
+      <span class="nav-lnk" id="nav-search" onclick="showPage('search')">
+        <i class="bi bi-search me-1"></i>Search
+      </span>
+      <span class="nav-lnk" id="nav-results" onclick="showPage('results')">
+        <i class="bi bi-briefcase me-1"></i>Results
+        <span class="nav-badge" id="result-badge" style="display:none">0</span>
+      </span>
+      <div class="api-wrap" id="api-wrap">
+        <i class="bi bi-key" id="key-icon"></i>
+        <input class="api-inp" type="password" id="api-key-inp"
+          placeholder="Paste Anthropic API key…"
+          oninput="onApiKey(this.value)">
+        <span class="key-ok" id="key-ok" style="display:none">✓</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ════ SEARCH PAGE ════ -->
+<div class="page active" id="page-search">
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="container-xl hero-content">
+      <div class="eyebrow"><span class="eyebrow-dot"></span>AI-Powered · LinkedIn Job Search</div>
+      <h1 class="hero-title">Find jobs that<br><span class="grad-text">actually fit you.</span></h1>
+      <p class="hero-sub">Upload your resume or type keywords — Claude AI reads your profile, matches roles, and surfaces full descriptions with direct LinkedIn apply links.</p>
+    </div>
+  </div>
+
+  <div class="container-xl pb-5" style="margin-top:-10px;">
+    <div class="search-card">
+
+      <!-- Tabs -->
+      <div class="tab-bar">
+        <button class="tb active" id="tab-kw" onclick="switchTab('keywords')">
+          <i class="bi bi-search"></i> Keywords
+        </button>
+        <button class="tb" id="tab-rv" onclick="switchTab('resume')">
+          <i class="bi bi-file-person-fill"></i> Upload Resume
+          <span class="tb-badge" id="rv-badge" style="display:none">✓</span>
+        </button>
+      </div>
+
+      <!-- Keywords tab -->
+      <div id="kw-panel">
+        <div class="inp-row">
+          <div class="inp-wrap">
+            <i class="bi bi-search inp-ic"></i>
+            <input id="inp-kw" class="s-inp" type="text" placeholder="Job title, skills, or keywords…"
+              onkeydown="if(event.key==='Enter')doSearch()">
+          </div>
+          <div class="inp-wrap">
+            <i class="bi bi-geo-alt inp-ic"></i>
+            <input id="inp-loc1" class="s-inp" type="text" placeholder="Location or Remote"
+              onkeydown="if(event.key==='Enter')doSearch()">
+          </div>
+        </div>
+        <div class="sugs mt-3">
+          <span class="sug-l">Try:</span>
+          <button class="sug" onclick="setSug('Python Developer')">Python Developer</button>
+          <button class="sug" onclick="setSug('Frontend Engineer')">Frontend Engineer</button>
+          <button class="sug" onclick="setSug('Data Scientist')">Data Scientist</button>
+          <button class="sug" onclick="setSug('Product Manager')">Product Manager</button>
+          <button class="sug" onclick="setSug('DevOps Engineer')">DevOps Engineer</button>
+          <button class="sug" onclick="setSug('Full Stack Developer')">Full Stack Developer</button>
+          <button class="sug" onclick="setSug('ML Engineer')">ML Engineer</button>
+          <button class="sug" onclick="setSug('UX Designer')">UX Designer</button>
+        </div>
+      </div>
+
+      <!-- Resume tab -->
+      <div id="rv-panel" style="display:none">
+        <div id="drop-z" class="drop-z"
+          onclick="document.getElementById('file-inp').click()"
+          ondragover="event.preventDefault();this.classList.add('dov')"
+          ondragleave="this.classList.remove('dov')"
+          ondrop="event.preventDefault();this.classList.remove('dov');handleFile(event.dataTransfer.files[0])">
+          <input id="file-inp" type="file" hidden accept=".pdf,.doc,.docx,.txt"
+            onchange="handleFile(this.files[0])">
+          <div class="drop-ic"><i class="bi bi-file-earmark-person"></i></div>
+          <p class="drop-t">Drop your resume here or <span>browse</span></p>
+          <p class="drop-h">PDF, DOCX, or TXT — up to 20 MB</p>
+        </div>
+
+        <div id="parse-st" class="parse-st" style="display:none">
+          <div class="p-ring-wrap"><div class="p-ring"></div><div class="p-icon"><i class="bi bi-cpu-fill"></i></div></div>
+          <p class="p-title">AI is reading your resume…</p>
+          <p class="p-sub">Extracting skills, experience, and job fit signals</p>
+        </div>
+
+        <div id="prof-card" class="prof-card" style="display:none">
+          <div class="prof-hdr">
+            <div class="prof-av" id="prof-av">?</div>
+            <div class="prof-inf"><h5 id="prof-name">Candidate</h5><p id="prof-title">—</p></div>
+            <button class="clr-btn" onclick="clearResume()"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <p class="prof-sum" id="prof-sum"></p>
+          <div class="prof-stats">
+            <div class="pst"><span class="psv" id="ps-exp">0</span><span class="psl">yrs exp</span></div>
+            <div class="pst"><span class="psv" id="ps-sk">0</span><span class="psl">skills</span></div>
+            <div class="pst"><span class="psv" id="ps-ind">0</span><span class="psl">industries</span></div>
+          </div>
+          <div class="sk-chips" id="sk-chips"></div>
+        </div>
+
+        <div id="rv-err" class="alert-c" style="display:none">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span id="rv-err-txt"></span>
+        </div>
+
+        <div class="inp-wrap mt-3" id="loc2-wrap" style="display:none">
+          <i class="bi bi-geo-alt inp-ic"></i>
+          <input id="inp-loc2" class="s-inp" type="text" placeholder="Preferred location or Remote">
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="flt-row">
+        <button class="flt-btn" onclick="toggleFilters()">
+          <i class="bi bi-sliders"></i> Filters
+          <i class="bi bi-chevron-down" id="flt-chev"></i>
+        </button>
+        <span id="flt-active" style="display:none;font-size:.72rem;color:var(--lj-amber);background:rgba(255,181,71,.1);border:1px solid rgba(255,181,71,.25);padding:3px 10px;border-radius:10px;font-weight:600;">Filters active</span>
+      </div>
+      <div id="flt-panel" class="flt-panel" style="display:none">
+        <div class="row g-3">
+          <div class="col-md-4"><label class="flt-label">Work Type</label>
+            <select class="f-sel" id="f-wt" onchange="updateFilterHint()">
+              <option value="">Any</option><option>Remote</option><option>Hybrid</option><option>On-site</option>
+            </select></div>
+          <div class="col-md-4"><label class="flt-label">Employment</label>
+            <select class="f-sel" id="f-et" onchange="updateFilterHint()">
+              <option value="">Any</option><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option>
+            </select></div>
+          <div class="col-md-4"><label class="flt-label">Experience</label>
+            <select class="f-sel" id="f-el" onchange="updateFilterHint()">
+              <option value="">Any</option><option>Entry level</option><option>Mid-Senior level</option><option>Senior</option><option>Director</option>
+            </select></div>
+        </div>
+      </div>
+
+      <div id="search-err" class="alert-c" style="display:none">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span id="search-err-txt"></span>
+      </div>
+
+      <div class="s-footer">
+        <div class="no-key-h" id="no-key-h"><i class="bi bi-key"></i> Paste your Anthropic API key in the top bar to search</div>
+        <button class="s-btn" id="s-btn" onclick="doSearch()" disabled>
+          <i class="bi bi-stars"></i> <span id="s-btn-txt">Search Jobs</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="stats-strip">
+      <div class="ss-item"><span class="ss-num">AI-Powered</span><span class="ss-desc">Smart resume matching</span></div>
+      <div class="ss-sep"></div>
+      <div class="ss-item"><span class="ss-num">12 Results</span><span class="ss-desc">Per search, ranked by fit</span></div>
+      <div class="ss-sep"></div>
+      <div class="ss-item"><span class="ss-num">Direct Links</span><span class="ss-desc">LinkedIn apply URLs</span></div>
+      <div class="ss-sep"></div>
+      <div class="ss-item"><span class="ss-num">Full JD</span><span class="ss-desc">Complete job descriptions</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ RESULTS PAGE ════ -->
+<div class="page" id="page-results">
+  <div id="empty-res" class="empty-res" style="display:none">
+    <div class="ei"><i class="bi bi-briefcase"></i></div>
+    <h3>No results yet</h3>
+    <p style="color:var(--lj-muted)">Run a search to see job listings here.</p>
+    <button class="s-btn" style="max-width:200px;" onclick="showPage('search')">
+      <i class="bi bi-search"></i> Go to Search
+    </button>
+  </div>
+
+  <div class="results-layout" id="res-layout" style="display:none">
+    <!-- LEFT: list -->
+    <div class="list-panel">
+      <div class="list-hdr">
+        <div class="lh-top">
+          <span class="jcount" id="jcount">0 jobs</span>
+          <span class="saved-tog" id="saved-tog" onclick="toggleSavedFilter()">
+            <i class="bi bi-bookmark"></i> Saved
+            <span class="saved-num" id="saved-num" style="display:none">0</span>
+          </span>
+        </div>
+        <div class="list-srch">
+          <i class="bi bi-search"></i>
+          <input class="ls-inp" type="text" placeholder="Filter results…"
+            oninput="filterList(this.value)">
+        </div>
+        <div class="f-pills">
+          <button class="f-pill active" onclick="setWtFilter(this,'')">All</button>
+          <button class="f-pill" onclick="setWtFilter(this,'Remote')">Remote</button>
+          <button class="f-pill" onclick="setWtFilter(this,'Hybrid')">Hybrid</button>
+          <button class="f-pill" onclick="setWtFilter(this,'On-site')">On-site</button>
+        </div>
+      </div>
+      <div class="job-list" id="job-list"></div>
+    </div>
+
+    <!-- RIGHT: detail -->
+    <div class="detail-panel" id="detail-panel">
+      <div class="empty-dp" id="detail-empty">
+        <div><div class="empty-dp-ic"><i class="bi bi-hand-index-thumb"></i></div><p>Select a job to view details</p></div>
+      </div>
+      <div id="detail-content" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const API = 'http://localhost:5000/api';
+
+// ── State
+let apiKey = localStorage.getItem('lj_api_key') || '';
+let allJobs = [];
+let filteredJobs = [];
+let selectedJobId = null;
+let profile = null;
+let showSavedOnly = false;
+let wtFilter = '';
+let textFilter = '';
+let activeTab = 'keywords';
+let similarJobs = [];
+let loadingSimilar = false;
+let filtersOpen = false;
+
+// ── Init
+document.getElementById('api-key-inp').value = apiKey;
+if (apiKey) updateApiKeyUI();
+
+function onApiKey(v) {
+  apiKey = v.trim();
+  localStorage.setItem('lj_api_key', apiKey);
+  updateApiKeyUI();
+}
+
+function updateApiKeyUI() {
+  const ok = !!apiKey;
+  document.getElementById('api-wrap').classList.toggle('ok', ok);
+  document.getElementById('key-icon').className = ok ? 'bi bi-key-fill' : 'bi bi-key';
+  document.getElementById('key-ok').style.display = ok ? '' : 'none';
+  document.getElementById('no-key-h').style.display = ok ? 'none' : '';
+  updateSearchBtn();
+}
+
+// ── Pages
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  document.querySelectorAll('.nav-lnk').forEach(el => el.classList.remove('active'));
+  document.getElementById('nav-' + p).classList.add('active');
+  if (p === 'results') renderResultsPage();
+}
+
+// ── Tabs
+function switchTab(t) {
+  activeTab = t;
+  document.getElementById('tab-kw').classList.toggle('active', t === 'keywords');
+  document.getElementById('tab-rv').classList.toggle('active', t === 'resume');
+  document.getElementById('kw-panel').style.display = t === 'keywords' ? '' : 'none';
+  document.getElementById('rv-panel').style.display = t === 'resume' ? '' : 'none';
+  document.getElementById('s-btn-txt').textContent = t === 'resume' ? 'Find Matching Jobs' : 'Search Jobs';
+  updateSearchBtn();
+}
+
+function updateSearchBtn() {
+  const ok = apiKey && (
+    (activeTab === 'keywords' && document.getElementById('inp-kw').value.trim()) ||
+    (activeTab === 'resume'   && profile)
+  );
+  document.getElementById('s-btn').disabled = !ok;
+}
+
+document.getElementById('inp-kw').addEventListener('input', updateSearchBtn);
+
+function setSug(s) { document.getElementById('inp-kw').value = s; updateSearchBtn(); }
+
+function toggleFilters() {
+  filtersOpen = !filtersOpen;
+  document.getElementById('flt-panel').style.display = filtersOpen ? '' : 'none';
+  document.getElementById('flt-chev').className = filtersOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+
+function updateFilterHint() {
+  const on = document.getElementById('f-wt').value || document.getElementById('f-et').value || document.getElementById('f-el').value;
+  document.getElementById('flt-active').style.display = on ? '' : 'none';
+}
+
+// ── Resume
+function handleFile(f) {
+  if (!f) return;
+  if (!/\.(pdf|docx?|txt)$/i.test(f.name)) {
+    showRvErr('Unsupported file type. Upload PDF, DOCX, or TXT.');
+    return;
+  }
+  if (!apiKey) { showRvErr('Paste your Anthropic API key first.'); return; }
+
+  document.getElementById('drop-z').style.display = 'none';
+  document.getElementById('parse-st').style.display = '';
+  document.getElementById('prof-card').style.display = 'none';
+  hideRvErr();
+
+  const fd = new FormData();
+  fd.append('resume', f);
+
+  fetch(API + '/parse-resume', { method: 'POST', headers: { 'x-api-key': apiKey }, body: fd })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('parse-st').style.display = 'none';
+      if (data.error) { showRvErr(data.error); document.getElementById('drop-z').style.display = ''; return; }
+      profile = data.profile;
+      renderProfile(profile);
+      document.getElementById('rv-badge').style.display = '';
+      document.getElementById('loc2-wrap').style.display = '';
+      updateSearchBtn();
+    })
+    .catch(e => {
+      document.getElementById('parse-st').style.display = 'none';
+      document.getElementById('drop-z').style.display = '';
+      showRvErr('Parse failed: ' + e.message);
+    });
+}
+
+function renderProfile(p) {
+  document.getElementById('prof-card').style.display = '';
+  document.getElementById('prof-av').textContent = (p.name || p.current_title || '?')[0].toUpperCase();
+  document.getElementById('prof-name').textContent = p.name || 'Candidate';
+  document.getElementById('prof-title').textContent = p.current_title;
+  document.getElementById('prof-sum').textContent = p.summary;
+  document.getElementById('ps-exp').textContent = p.experience_years;
+  document.getElementById('ps-sk').textContent = p.skills.length;
+  document.getElementById('ps-ind').textContent = p.industries.length;
+  const chips = p.skills.slice(0, 12).map(s =>
+    `<span class="sk-chip">${s}</span>`).join('') +
+    (p.skills.length > 12 ? `<span class="sk-chip more">+${p.skills.length-12} more</span>` : '');
+  document.getElementById('sk-chips').innerHTML = chips;
+}
+
+function clearResume() {
+  profile = null;
+  document.getElementById('drop-z').style.display = '';
+  document.getElementById('prof-card').style.display = 'none';
+  document.getElementById('rv-badge').style.display = 'none';
+  document.getElementById('loc2-wrap').style.display = 'none';
+  hideRvErr();
+  updateSearchBtn();
+}
+
+function showRvErr(msg) {
+  document.getElementById('rv-err').style.display = '';
+  document.getElementById('rv-err-txt').textContent = msg;
+}
+function hideRvErr() { document.getElementById('rv-err').style.display = 'none'; }
+
+// ── Search
+function doSearch() {
+  if (!apiKey) return;
+  const loc = activeTab === 'keywords'
+    ? document.getElementById('inp-loc1').value
+    : document.getElementById('inp-loc2').value;
+
+  const body = activeTab === 'keywords'
+    ? { keywords: document.getElementById('inp-kw').value, location: loc }
+    : { profile, location: loc };
+
+  body.filters = {
+    work_type: document.getElementById('f-wt').value,
+    employment_type: document.getElementById('f-et').value,
+    experience_level: document.getElementById('f-el').value,
+  };
+
+  const btn = document.getElementById('s-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>AI is finding jobs…';
+  document.getElementById('search-err').style.display = 'none';
+
+  fetch(API + '/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+    body: JSON.stringify(body)
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-stars"></i> <span id="s-btn-txt">${activeTab==='resume'?'Find Matching Jobs':'Search Jobs'}</span>`;
+    if (!data.success || data.error) {
+      document.getElementById('search-err').style.display = '';
+      document.getElementById('search-err-txt').textContent = data.error || 'Search failed.';
+      return;
+    }
+    allJobs = data.jobs;
+    filteredJobs = [...allJobs];
+    showPage('results');
+  })
+  .catch(e => {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-stars"></i> <span id="s-btn-txt">${activeTab==='resume'?'Find Matching Jobs':'Search Jobs'}</span>`;
+    document.getElementById('search-err').style.display = '';
+    document.getElementById('search-err-txt').textContent = 'Could not reach backend. Is Flask running? ' + e.message;
+  });
+}
+
+// ── Results page
+function renderResultsPage() {
+  if (!allJobs.length) {
+    document.getElementById('empty-res').style.display = '';
+    document.getElementById('res-layout').style.display = 'none';
+    return;
+  }
+  document.getElementById('empty-res').style.display = 'none';
+  document.getElementById('res-layout').style.display = '';
+
+  const badge = document.getElementById('result-badge');
+  badge.textContent = allJobs.length;
+  badge.style.display = '';
+
+  applyFilters();
+  if (filteredJobs.length) selectJob(filteredJobs[0].id);
+}
+
+function applyFilters() {
+  let list = showSavedOnly ? allJobs.filter(j => j.saved) : allJobs;
+  if (wtFilter) list = list.filter(j => j.work_type === wtFilter);
+  if (textFilter) {
+    const q = textFilter.toLowerCase();
+    list = list.filter(j =>
+      j.title.toLowerCase().includes(q) ||
+      j.company.toLowerCase().includes(q) ||
+      j.location.toLowerCase().includes(q) ||
+      (j.skills_required||[]).some(s => s.toLowerCase().includes(q))
+    );
+  }
+  filteredJobs = list;
+  document.getElementById('jcount').textContent = filteredJobs.length + ' job' + (filteredJobs.length!==1?'s':'');
+  renderJobList();
+}
+
+function renderJobList() {
+  const el = document.getElementById('job-list');
+  if (!filteredJobs.length) { el.innerHTML = '<div class="no-match">No jobs match your filter.</div>'; return; }
+
+  el.innerHTML = filteredJobs.map((j, i) => {
+    const mc = matchClass(j.match_score);
+    const wtC = wtClass(j.work_type);
+    return `
+    <div class="jc ${selectedJobId===j.id?'sel':''} fade-up" style="animation-delay:${i*.03}s"
+      id="jc-${j.id}" onclick="selectJob('${j.id}')">
+      <div class="jc-tr">
+        <h4 class="jc-ttl">${j.title}</h4>
+        <button class="sv-btn ${j.saved?'saved':''}" onclick="toggleSave('${j.id}',event)"
+          title="${j.saved?'Unsave':'Save'}">
+          <i class="bi ${j.saved?'bi-bookmark-fill':'bi-bookmark'}"></i>
+        </button>
+      </div>
+      <p class="jc-co">${j.company}</p>
+      <p class="jc-loc"><i class="bi bi-geo-alt"></i> ${j.location}</p>
+      <div class="jc-mid">
+        <span class="${wtC}">${j.work_type}</span>
+        <span class="b-et">${j.employment_type}</span>
+        ${j.easy_apply?'<span class="b-ea"><i class="bi bi-lightning-fill"></i> Easy Apply</span>':''}
+      </div>
+      <div class="jc-bot">
+        <div class="mb-wrap">
+          <div class="mb ${mc}"><div class="mb-fill" style="width:${j.match_score}%"></div></div>
+          <span class="m-lbl ${mc}">${j.match_score}% match</span>
+        </div>
+        ${j.salary_range!=='Not disclosed'?`<span class="jc-sal">${j.salary_range}</span>`:''}
+      </div>
+      <p class="jc-post"><i class="bi bi-clock"></i> ${j.posted_date} · ${j.applicants}</p>
+    </div>`;
+  }).join('');
+}
+
+function selectJob(id) {
+  selectedJobId = id;
+  document.querySelectorAll('.jc').forEach(el => {
+    el.classList.toggle('sel', el.id === 'jc-' + id);
+  });
+  const job = allJobs.find(j => j.id === id);
+  if (job) renderDetail(job, 'description');
+}
+
+function renderDetail(job, tab) {
+  const mc = matchClass(job.match_score);
+  const wtC = wtClass(job.work_type);
+
+  document.getElementById('detail-empty').style.display = 'none';
+  document.getElementById('detail-content').style.display = '';
+
+  const skMatched = (job.skills_matched||[]).map(s =>
+    `<span class="sm-c mat">${s}</span>`).join('');
+  const skUnmatched = (job.skills_required||[])
+    .filter(s => !(job.skills_matched||[]).includes(s))
+    .map(s => `<span class="sm-c unm">${s}</span>`).join('');
+
+  let tabBody = '';
+  if (tab === 'description') {
+    const reasons = (job.match_reasons||[]).map(r => `<li>${r}</li>`).join('');
+    const paras = job.description.split('\n').filter(l=>l.trim()).map(p => `<p>${p}</p>`).join('');
+    const bens = (job.benefits||[]).map(b =>
+      `<span class="ben-c"><i class="bi bi-check-circle-fill"></i> ${b}</span>`).join('');
+    tabBody = `
+      ${reasons ? `<div class="match-r mb-3"><p class="eyebrow-s"><i class="bi bi-stars"></i>Why this matches you</p><ul>${reasons}</ul></div>` : ''}
+      <div class="mb-3"><p class="eyebrow-s"><i class="bi bi-file-text"></i>Full Job Description</p><div class="jd-txt">${paras}</div></div>
+      ${bens ? `<div><p class="eyebrow-s"><i class="bi bi-gift"></i>Benefits</p><div class="ben-grid">${bens}</div></div>` : ''}`;
+  } else if (tab === 'company') {
+    tabBody = `
+      <div class="co-section">
+        <div class="co-logo-lg">${job.company[0]}</div>
+        <h3>${job.company}</h3>
+        <div class="co-meta">
+          <span><i class="bi bi-people-fill me-1"></i>${job.company_size}</span>
+          <span><i class="bi bi-briefcase-fill me-1"></i>${job.industry}</span>
+        </div>
+        <p class="co-about">${job.about_company}</p>
+        <a href="https://www.linkedin.com/company/${encodeURIComponent(job.company.toLowerCase().replace(/ /g,'-'))}"
+          target="_blank" class="btn-ol mt-3" style="display:inline-flex;">
+          <i class="bi bi-linkedin"></i> View on LinkedIn
+        </a>
+      </div>`;
+  } else if (tab === 'similar') {
+    if (loadingSimilar) {
+      tabBody = `<div class="sim-loading"><div class="sr"></div><p>Finding similar roles…</p></div>`;
+    } else if (!similarJobs.length) {
+      tabBody = `<div class="sim-empty"><p>No similar jobs loaded yet.</p>
+        <button class="btn-ol mt-2" onclick="loadSimilar()"><i class="bi bi-grid me-1"></i>Load Similar Jobs</button></div>`;
+    } else {
+      tabBody = '<div class="sim-grid">' + similarJobs.map(j => `
+        <div class="sim-c" onclick="addAndSelect(${JSON.stringify(j).replace(/"/g,'&quot;')})">
+          <div class="sim-logo">${j.company[0]}</div>
+          <div class="sim-inf">
+            <h6>${j.title}</h6>
+            <p>${j.company} · ${j.location}</p>
+            <div class="sim-meta">
+              <span class="${wtClass(j.work_type)}">${j.work_type}</span>
+              <span class="m-lbl ${matchClass(j.match_score)}">${j.match_score}%</span>
+            </div>
+          </div>
+        </div>`).join('') + '</div>';
+    }
+  }
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="dh">
+      <div class="dh-top">
+        <div class="co-logo">${job.company[0]}</div>
+        <div class="dh-inf">
+          <h2 class="dh-ttl">${job.title}</h2>
+          <p class="dh-co">${job.company} <span>· ${job.company_size}</span></p>
+          <div class="dh-meta">
+            <span><i class="bi bi-geo-alt me-1"></i>${job.location}</span>
+            <span><i class="bi bi-clock me-1"></i>${job.posted_date}</span>
+            <span><i class="bi bi-people me-1"></i>${job.applicants}</span>
+          </div>
+        </div>
+        <div class="m-ring ${mc}">${job.match_score}%<span>match</span></div>
+      </div>
+      <div class="dh-bgs">
+        <span class="${wtC}">${job.work_type}</span>
+        <span class="b-et">${job.employment_type}</span>
+        <span class="b-sn">${job.seniority}</span>
+        ${job.easy_apply?'<span class="b-ea"><i class="bi bi-lightning-fill"></i> Easy Apply</span>':''}
+        ${job.salary_range!=='Not disclosed'?`<span class="b-sal"><i class="bi bi-currency-dollar"></i> ${job.salary_range}</span>`:''}
+      </div>
+      <div class="dh-acts">
+        <a href="${job.apply_url}" target="_blank" rel="noopener" class="btn-li">
+          <i class="bi bi-linkedin"></i>
+          ${job.easy_apply?'Easy Apply on LinkedIn':'Apply on LinkedIn'}
+        </a>
+        <a href="${job.linkedin_search_url}" target="_blank" rel="noopener" class="btn-ol">
+          <i class="bi bi-search"></i> Find on LinkedIn
+        </a>
+        <button class="btn-sv ${job.saved?'saved':''}" onclick="toggleSaveDetail('${job.id}')">
+          <i class="bi ${job.saved?'bi-bookmark-fill':'bi-bookmark'}"></i>
+          ${job.saved?'Saved':'Save'}
+        </button>
+      </div>
+      ${skMatched||skUnmatched ? `
+      <div class="sm-row">
+        <span class="sm-lbl">Skills:</span>
+        ${skMatched}${skUnmatched}
+      </div>` : ''}
+    </div>
+    <div class="dtabs">
+      <button class="dtab ${tab==='description'?'active':''}" onclick="switchDetailTab('description')">
+        <i class="bi bi-file-text"></i> Description
+      </button>
+      <button class="dtab ${tab==='company'?'active':''}" onclick="switchDetailTab('company')">
+        <i class="bi bi-building"></i> Company
+      </button>
+      <button class="dtab ${tab==='similar'?'active':''}" onclick="switchDetailTab('similar')">
+        <i class="bi bi-grid"></i> Similar Jobs
+      </button>
+    </div>
+    <div class="dbody">${tabBody}</div>
+  `;
+}
+
+function switchDetailTab(tab) {
+  if (tab === 'similar' && !similarJobs.length && !loadingSimilar) loadSimilar();
+  const job = allJobs.find(j => j.id === selectedJobId);
+  if (job) renderDetail(job, tab);
+}
+
+function loadSimilar() {
+  const job = allJobs.find(j => j.id === selectedJobId);
+  if (!job || loadingSimilar) return;
+  loadingSimilar = true;
+  similarJobs = [];
+  renderDetail(job, 'similar');
+
+  fetch(API + `/job/${job.id}/similar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+    body: JSON.stringify({ job })
+  })
+  .then(r => r.json())
+  .then(data => {
+    loadingSimilar = false;
+    similarJobs = data.jobs || [];
+    const j = allJobs.find(x => x.id === selectedJobId);
+    if (j) renderDetail(j, 'similar');
+  })
+  .catch(() => { loadingSimilar = false; });
+}
+
+function addAndSelect(job) {
+  if (!allJobs.find(j => j.id === job.id)) {
+    allJobs.push(job);
+    filteredJobs = [...allJobs];
+  }
+  selectedJobId = job.id;
+  similarJobs = [];
+  applyFilters();
+  renderDetail(job, 'description');
+}
+
+function toggleSave(id, e) {
+  e.stopPropagation();
+  const job = allJobs.find(j => j.id === id);
+  if (!job) return;
+  job.saved = !job.saved;
+  updateSavedUI();
+  const jc = document.getElementById('jc-' + id);
+  if (jc) {
+    jc.querySelector('.sv-btn').className = `sv-btn ${job.saved?'saved':''}`;
+    jc.querySelector('.sv-btn i').className = `bi ${job.saved?'bi-bookmark-fill':'bi-bookmark'}`;
+  }
+  if (selectedJobId === id) {
+    const j = allJobs.find(x => x.id === selectedJobId);
+    const detBtn = document.querySelector('.btn-sv');
+    if (detBtn) {
+      detBtn.className = `btn-sv ${job.saved?'saved':''}`;
+      detBtn.innerHTML = `<i class="bi ${job.saved?'bi-bookmark-fill':'bi-bookmark'}"></i> ${job.saved?'Saved':'Save'}`;
+    }
+  }
+}
+
+function toggleSaveDetail(id) { toggleSave(id, { stopPropagation: ()=>{} }); }
+
+function updateSavedUI() {
+  const cnt = allJobs.filter(j => j.saved).length;
+  const sn = document.getElementById('saved-num');
+  sn.textContent = cnt;
+  sn.style.display = cnt ? '' : 'none';
+}
+
+function toggleSavedFilter() {
+  showSavedOnly = !showSavedOnly;
+  document.getElementById('saved-tog').classList.toggle('active', showSavedOnly);
+  applyFilters();
+}
+
+function setWtFilter(el, val) {
+  wtFilter = val;
+  document.querySelectorAll('.f-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+
+function filterList(q) { textFilter = q; applyFilters(); }
+
+// ── Helpers
+function matchClass(s) { return s>=85?'mh':s>=70?'mm':'ml'; }
+function wtClass(wt) { return wt==='Remote'?'b-remote':wt==='Hybrid'?'b-hybrid':'b-onsite'; }
+
+// Init nav
+document.getElementById('nav-search').classList.add('active');
+</script>
+</body>
+</html>
